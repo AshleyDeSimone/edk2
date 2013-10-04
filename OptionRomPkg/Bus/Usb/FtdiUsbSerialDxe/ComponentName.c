@@ -1,40 +1,42 @@
 /** @file
   UEFI Component Name(2) protocol implementation for USB Serial driver.
 
-Copyright (c) 2004 - 2012, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2004 - 2013, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
-are licensed and made available under the terms and conditions of the BSD License
-which accompanies this distribution.  The full text of the license may be found at
-http://opensource.org/licenses/bsd-license.php
+are licensed and made available under the terms and conditions of the BSD
+License which accompanies this distribution.  The full text of the license may
+be found at http://opensource.org/licenses/bsd-license.php
 
 THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
 WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 
 **/
 
-#include "FtdiUsbSerial.h"
+#include "FtdiUsbSerialDriver.h"
 
 //
 // EFI Component Name Protocol
 //
-
-GLOBAL_REMOVE_IF_UNREFERENCED EFI_COMPONENT_NAME_PROTOCOL  gUsbSerialComponentName = {
-  UsbSerialComponentNameGetDriverName,
-  UsbSerialComponentNameGetControllerName,
+GLOBAL_REMOVE_IF_UNREFERENCED EFI_COMPONENT_NAME_PROTOCOL gUsbSerialComponentName = {
+  (EFI_COMPONENT_NAME_GET_DRIVER_NAME) UsbSerialComponentNameGetDriverName,
+  (EFI_COMPONENT_NAME_GET_CONTROLLER_NAME) UsbSerialComponentNameGetControllerName,
   "eng"
 };
+
 //
 // EFI Component Name 2 Protocol
 //
-
 GLOBAL_REMOVE_IF_UNREFERENCED EFI_COMPONENT_NAME2_PROTOCOL gUsbSerialComponentName2 = {
-  (EFI_COMPONENT_NAME2_GET_DRIVER_NAME) UsbSerialComponentNameGetDriverName,
-  (EFI_COMPONENT_NAME2_GET_CONTROLLER_NAME) UsbSerialComponentNameGetControllerName,
+  UsbSerialComponentNameGetDriverName,
+  UsbSerialComponentNameGetControllerName,
   "en"
 };
 
+//
+// Driver name string table
+//
 GLOBAL_REMOVE_IF_UNREFERENCED EFI_UNICODE_STRING_TABLE mUsbSerialDriverNameTable[] = {
-  { "eng;en", L"FTDI-232 USB Serial Driver v8.410" },
+  { "eng;en", L"FTDI-232 USB Serial Driver" },
   { NULL , NULL }
 };
 
@@ -72,13 +74,12 @@ GLOBAL_REMOVE_IF_UNREFERENCED EFI_UNICODE_STRING_TABLE mUsbSerialDriverNameTable
                                 the language specified by Language.
 
 **/
-
 EFI_STATUS
 EFIAPI
 UsbSerialComponentNameGetDriverName (
-  IN  EFI_COMPONENT_NAME_PROTOCOL  *This,
-  IN  CHAR8                        *Language,
-  OUT CHAR16                       **DriverName
+  IN  EFI_COMPONENT_NAME2_PROTOCOL  *This,
+  IN  CHAR8                         *Language,
+  OUT CHAR16                        **DriverName
   )
 {
   return LookupUnicodeString2 (
@@ -86,7 +87,7 @@ UsbSerialComponentNameGetDriverName (
            This->SupportedLanguages,
            mUsbSerialDriverNameTable,
            DriverName,
-           (BOOLEAN)(This == &gUsbSerialComponentName)
+           (BOOLEAN)(This == &gUsbSerialComponentName2)
            );
 }
 
@@ -149,21 +150,21 @@ UsbSerialComponentNameGetDriverName (
                                 the language specified by Language.
 
 **/
-
 EFI_STATUS
 EFIAPI
 UsbSerialComponentNameGetControllerName (
-  IN  EFI_COMPONENT_NAME_PROTOCOL                     *This,
-  IN  EFI_HANDLE                                      ControllerHandle,
-  IN  EFI_HANDLE                                      ChildHandle        OPTIONAL,
-  IN  CHAR8                                           *Language,
-  OUT CHAR16                                          **ControllerName
+  IN  EFI_COMPONENT_NAME2_PROTOCOL  *This,
+  IN  EFI_HANDLE                    ControllerHandle,
+  IN  EFI_HANDLE                    ChildHandle      OPTIONAL,
+  IN  CHAR8                         *Language,
+  OUT CHAR16                        **ControllerName
   )
 {
-  EFI_STATUS                  Status;
-  USB_SER_DEV                 *UsbSerDev;
-  EFI_SERIAL_IO_PROTOCOL      *SerialIo;
-  EFI_USB_IO_PROTOCOL         *UsbIoProtocol;
+  EFI_STATUS              Status;
+  USB_SER_DEV             *UsbSerDev;
+  EFI_SERIAL_IO_PROTOCOL  *SerialIo;
+  EFI_USB_IO_PROTOCOL     *UsbIoProtocol;
+  
   //
   // This is a device driver, so ChildHandle must be NULL.
   //
@@ -207,7 +208,6 @@ UsbSerialComponentNameGetControllerName (
                   ControllerHandle,
                   EFI_OPEN_PROTOCOL_GET_PROTOCOL
                   );
-
   if (EFI_ERROR (Status)) {
     return Status;
   }
@@ -219,7 +219,6 @@ UsbSerialComponentNameGetControllerName (
            This->SupportedLanguages,
            UsbSerDev->ControllerNameTable,
            ControllerName,
-           (BOOLEAN)(This == &gUsbSerialComponentName)
+           (BOOLEAN)(This == &gUsbSerialComponentName2)
            );
-
 }

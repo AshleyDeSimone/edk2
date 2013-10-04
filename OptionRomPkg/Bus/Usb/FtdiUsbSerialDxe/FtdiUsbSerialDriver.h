@@ -1,12 +1,12 @@
 /** @file
   Header file for USB Serial Driver's Data Structures.
 
+Copyright (c) 2004 - 2013, Intel Corporation. All rights reserved.
 Portions Copyright 2012 Ashley DeSimone
-Copyright (c) 2004 - 2011, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
-are licensed and made available under the terms and conditions of the BSD License
-which accompanies this distribution.  The full text of the license may be found at
-http://opensource.org/licenses/bsd-license.php
+are licensed and made available under the terms and conditions of the BSD
+License which accompanies this distribution.  The full text of the license may
+be found at http://opensource.org/licenses/bsd-license.php
 
 THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
 WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
@@ -23,54 +23,207 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 #include <Library/UefiBootServicesTableLib.h>
 #include <Library/UefiLib.h>
 #include <Library/UefiUsbLib.h>
+#include <Library/DevicePathLib.h>
 
 #include <Protocol/SerialIo.h>
+#include <Protocol/DevicePath.h>
 
-#define USB_SER_DEV_SIGNATURE  SIGNATURE_32 ('u', 's', 'b', 's')
+//
+// US English LangID
+//
+#define USB_US_LANG_ID  0x0409
 
-#define REQ_TYPE            0x40
+//
+// Supported Vendor Ids
+//
+#define VID_FTDI    0x0403
 
-///
-/// FTDI Commands
-///
+//
+// Supported product ids
+//
+#define DID_FTDI_FT232    0x6001
+
+//
+// FTDI Commands
+//
 #define FTDI_COMMAND_RESET_PORT          0
 #define FTDI_COMMAND_MODEM_CTRL          1
 #define FTDI_COMMAND_SET_FLOW_CTRL       2
 #define FTDI_COMMAND_SET_BAUDRATE        3
-#define FTDI_COMMAND_SET_DATA_BITS       4
+#define FTDI_COMMAND_SET_DATA            4
 #define FTDI_COMMAND_GET_MODEM_STATUS    5
 #define FTDI_COMMAND_SET_EVENT_CHAR      6
 #define FTDI_COMMAND_SET_ERROR_CHAR      7
 #define FTDI_COMMAND_SET_LATENCY_TIMER   9
 #define FTDI_COMMAND_GET_LATENCY_TIMER   10
 
-///
-/// SET_FLOW_CONTROL
-///
-#define NO_FLOW_CTRL        0x0
+//
+// FTDI_PORT_IDENTIFIER
+// Used in the usb control transfers that issue FTDI commands as the index value.
+//
+#define FTDI_PORT_IDENTIFIER    0x1 // For FTDI USB serial adapter the port
+                                    // identifier is always 1.
 
-///
-/// SET_BAUD_RATE
-/// To set baud rate, one must calculate an encoding of the baud rate from UINT32 to UINT16.
-/// See EncodeBaudRateForFtdi() for details
-///
-#define FTDI_UART_FREQUENCY 3000000
-#define FTDI_MIN_DIVISOR    0x20
-#define FTDI_MAX_DIVISOR    0x3FFF8
+//
+// RESET_PORT
+//
+#define RESET_PORT_RESET        0x0 // Purges RX and TX, clears DTR and RTS sets
+                                    // flow control to none, disables event
+                                    // trigger, sets the event char to 0x0d and
+                                    // does nothing to baudrate or data settings
+#define RESET_PORT_PURGE_RX     0x1
+#define RESET_PORT_PURGE_TX     0x2
 
-///
-/// SET_DATA_BITS
-///
-#define SET_DATA_BITS_8     0x08
+//
+// SET_FLOW_CONTROL
+//
+#define NO_FLOW_CTRL                     0x0
+#define XON_XOFF_CTRL                    0x4
 
-///
-/// Structure to describe USB serial device
-///
+//
+// SET_BAUD_RATE
+// To set baud rate, one must calculate an encoding of the baud rate from
+// UINT32 to UINT16.See EncodeBaudRateForFtdi() for details
+//
+#define FTDI_UART_FREQUENCY              3000000
+#define FTDI_MIN_DIVISOR                 0x20
+#define FTDI_MAX_DIVISOR                 0x3FFF8
+//
+// Special case baudrate values
+// 300,000 and 200,000 are special cases for calculating the encoded baudrate
+//
+#define FTDI_SPECIAL_CASE_300_MIN        (3000000 * 100) / 103 // minimum adjusted
+                                                               // value for 300,000
+#define FTDI_SPECIAL_CASE_300_MAX        (3000000 * 100) / 97  // maximum adjusted
+                                                               // value for 300,000
+#define FTDI_SPECIAL_CASE_200_MIN        (2000000 * 100) / 103 // minimum adjusted
+                                                               // value for 200,000
+#define FTDI_SPECIAL_CASE_200_MAX        (2000000 * 100) / 97  // maximum adjusted
+                                                               // value for 200,000
+//
+// Min and max frequency values that the FTDI chip can attain
+//.all generated frequencies must be between these values
+//
+#define FTDI_MIN_FREQUENCY              46601941 // (3MHz * 1600) / 103 = 46601941
+#define FTDI_MAX_FREQUENCY              49484536 // (3MHz * 1600) / 97 = 49484536
+
+//
+// SET_DATA_BITS
+//
+#define SET_DATA_BITS_8                  0x08
+#define SET_DATA_BITS(n)                 (n)
+
+//
+// SET_PARITY
+//
+#define SET_PARITY_NONE                   0x0
+#define SET_PARITY_ODD                    BIT8 // (0x1 << 8)
+#define SET_PARITY_EVEN                   BIT9 // (0x2 << 8)
+#define SET_PARITY_MARK                   BIT9 | BIT8 // (0x3 << 8)
+#define SET_PARITY_SPACE                  BIT10 // (0x4 << 8)
+
+//
+// SET_STOP_BITS
+//
+#define SET_STOP_BITS_1                   0x0
+#define SET_STOP_BITS_15                  BIT11 // (0x1 << 11)
+#define SET_STOP_BITS_2                   BIT12 // (0x2 << 11)
+
+//
+// SET_MODEM_CTRL
+// SET_DTR_HIGH = (1 | (SET_DTR << 8)), SET_DTR_LOW = (0 | (SET_DTR << 8)
+// SET_RTS_HIGH = (2 | (SET_RTS << 8)), SET_RTS_LOW = (0 | (SET_RTS << 8)
+//
+#define SET_DTR                          0x1
+#define SET_DTR_MASK                     BIT8 // equivalent to SET_DTR << 8
+#define SET_DTR_HIGH                     (1 | SET_DTR_MASK)
+#define SET_DTR_LOW                      (0 | SET_DTR_MASK)
+#define SET_RTS                          0x2
+#define SET_RTS_MASK                     BIT9 // equivalent to SET_RTS << 8
+#define SET_RTS_HIGH                     (2 | SET_RTS_MASK)
+#define SET_RTS_LOW                      (0 | SET_RTS_MASK)
+
+//
+// MODEM_STATUS
+//
+#define CTS_MASK                         0x10
+#define DSR_MASK                         0x20
+#define RI_MASK                          0x40
+#define SD_MASK                          0x80
+#define MSR_MASK                         0xf0
+
+//
+// Macro used to check for USB transfer errors
+//
+#define USB_IS_ERROR(Result, Error)           (((Result) & (Error)) != 0)
+
+//
+// USB request timeouts
+//
+#define WDR_TIMEOUT        5000  // default urb timeout in ms
+#define WDR_SHORT_TIMEOUT  1000  // shorter urb timeout in ms
+
+//
+// Max buffer size for USB transfers
+//
+#define MAX_BUFFER_SIZE 1024
+
+//
+// struct to define a usb device as a vendor and product id pair
+//
+typedef struct {
+  UINTN     VendorId;
+  UINTN     DeviceId;
+} USB_DEVICE;
+
+//
+//struct to describe the control bits of the device
+//true indicates enabled
+//false indicates disabled
+// 
+typedef struct {
+  BOOLEAN    HardwareFlowControl;
+  BOOLEAN    DtrState;
+  BOOLEAN    RtsState;
+  BOOLEAN    HardwareLoopBack;
+  BOOLEAN    SoftwareLoopBack;
+} CONTROL_BITS;
+
+//
+//struct to describe the status bits of the device 
+//true indicates enabled
+//false indicated disabled
+//
+typedef struct {
+  BOOLEAN    CtsState;
+  BOOLEAN    DsrState;
+  BOOLEAN    RiState;
+  BOOLEAN    SdState;
+} STATUS_BITS;
+
+//
+// Structure to describe the last attributes of the Usb Serial device
+//
+typedef struct {
+  UINT64              BaudRate;
+  UINT32              ReceiveFifoDepth;
+  UINT32              Timeout;
+  EFI_PARITY_TYPE     Parity;
+  UINT8               DataBits;
+  EFI_STOP_BITS_TYPE  StopBits;
+} PREVIOUS_ATTRIBUTES;
+
+//
+// Structure to describe USB serial device
+//
+#define USB_SER_DEV_SIGNATURE  SIGNATURE_32 ('u', 's', 'b', 's')
 
 typedef struct {
   UINTN                         Signature;
   EFI_HANDLE                    ControllerHandle;
   EFI_DEVICE_PATH_PROTOCOL      *DevicePath;
+  EFI_DEVICE_PATH_PROTOCOL      *ParentDevicePath;
+  UART_DEVICE_PATH              UartDevicePath;
   EFI_USB_IO_PROTOCOL           *UsbIo;
   EFI_USB_INTERFACE_DESCRIPTOR  InterfaceDescriptor;
   EFI_USB_ENDPOINT_DESCRIPTOR   InEndpointDescriptor;
@@ -83,7 +236,13 @@ typedef struct {
   BOOLEAN                       Shutdown;
   EFI_EVENT                     PollingLoop;
   UINT32                        ControlBits;
+  PREVIOUS_ATTRIBUTES           LastSettings;
+  CONTROL_BITS                  ControlValues;
+  STATUS_BITS                   StatusValues;
 } USB_SER_DEV;
+
+#define USB_SER_DEV_FROM_THIS(a) \
+  CR(a, USB_SER_DEV, SerialIo, USB_SER_DEV_SIGNATURE)
 
 //
 // Global Variables
@@ -92,41 +251,26 @@ extern EFI_DRIVER_BINDING_PROTOCOL   gUsbSerialDriverBinding;
 extern EFI_COMPONENT_NAME_PROTOCOL   gUsbSerialComponentName;
 extern EFI_COMPONENT_NAME2_PROTOCOL  gUsbSerialComponentName2;
 
-#define USB_SER_DEV_FROM_THIS(a) \
-  CR(a, USB_SER_DEV, SerialIo, USB_SER_DEV_SIGNATURE)
-
-#define USB_MASS_1_MILLISECOND    1000
-#define USB_MASS_1_SECOND         (1000 * USB_MASS_1_MILLISECOND)
-
-//
-// Mass command timeout, refers to specification[USB20-9.2.6.1]
-//
-// USB2.0 Spec define the up-limit timeout 5s for all command. USB floppy,
-// USB CD-Rom and iPod devices are much slower than USB key when reponse
-// most of commands, So we set 5s as timeout here.
-//
-#define USB_BOOT_GENERAL_CMD_TIMEOUT  (5 * USB_MASS_1_SECOND)
-
 //
 // Functions of Driver Binding Protocol
 //
 /**
   Check whether USB Serial driver supports this device.
 
-  @param  This                   The USB Serial driver binding protocol.
-  @param  Controller             The controller handle to check.
-  @param  RemainingDevicePath    The remaining device path.
+  @param  This[in]                   The USB Serial driver binding protocol.
+  @param  Controller[in]             The controller handle to check.
+  @param  RemainingDevicePath[in]    The remaining device path.
 
-  @retval EFI_SUCCESS            The driver supports this controller.
-  @retval other                  This device isn't supported.
+  @retval EFI_SUCCESS                The driver supports this controller.
+  @retval other                      This device isn't supported.
 
 **/
 EFI_STATUS
 EFIAPI
 UsbSerialDriverBindingSupported (
-  IN EFI_DRIVER_BINDING_PROTOCOL    *This,
-  IN EFI_HANDLE                     Controller,
-  IN EFI_DEVICE_PATH_PROTOCOL       *RemainingDevicePath
+  IN EFI_DRIVER_BINDING_PROTOCOL  *This,
+  IN EFI_HANDLE                   Controller,
+  IN EFI_DEVICE_PATH_PROTOCOL     *RemainingDevicePath
   );
 
 /**
@@ -135,188 +279,176 @@ UsbSerialDriverBindingSupported (
   This function produces Serial IO Protocol and initializes the USB
   Serial device to manage this USB Serial device.
 
-  @param  This                   The USB Serial driver binding instance.
-  @param  Controller             Handle of device to bind driver to.
-  @param  RemainingDevicePath    Optional parameter use to pick a specific child
-                                 device to start.
+  @param  This[in]                   The USB Serial driver binding instance.
+  @param  Controller[in]             Handle of device to bind driver to.
+  @param  RemainingDevicePath[in]    Optional parameter use to pick a specific
+                                     child device to start.
 
-  @retval EFI_SUCCESS            The controller is controlled by the USB Serial driver.
-  @retval EFI_UNSUPPORTED        No interrupt endpoint can be found.
-  @retval Other                  This controller cannot be started.
+  @retval EFI_SUCCESS                The controller is controlled by the USB
+                                     Serial driver.
+  @retval EFI_UNSUPPORTED            No interrupt endpoint can be found.
+  @retval Other                      This controller cannot be started.
 
 **/
 EFI_STATUS
 EFIAPI
 UsbSerialDriverBindingStart (
-  IN EFI_DRIVER_BINDING_PROTOCOL    *This,
-  IN EFI_HANDLE                     Controller,
-  IN EFI_DEVICE_PATH_PROTOCOL       *RemainingDevicePath
+  IN EFI_DRIVER_BINDING_PROTOCOL  *This,
+  IN EFI_HANDLE                   Controller,
+  IN EFI_DEVICE_PATH_PROTOCOL     *RemainingDevicePath
   );
 
 /**
   Stop the USB Serial device handled by this driver.
 
-  @param  This                   The USB Serial driver binding protocol.
-  @param  Controller             The controller to release.
-  @param  NumberOfChildren       The number of handles in ChildHandleBuffer.
-  @param  ChildHandleBuffer      The array of child handle.
+  @param  This[in]                   The USB Serial driver binding protocol.
+  @param  Controller[in]             The controller to release.
+  @param  NumberOfChildren[in]       The number of handles in ChildHandleBuffer.
+  @param  ChildHandleBuffer[in]      The array of child handle.
 
-  @retval EFI_SUCCESS            The device was stopped.
-  @retval EFI_UNSUPPORTED        Simple Text In Protocol or Simple Text In Ex Protocol
-                                 is not installed on Controller.
-  @retval EFI_DEVICE_ERROR       The device could not be stopped due to a device error.
-  @retval Others                 Fail to uninstall protocols attached on the device.
+  @retval EFI_SUCCESS                The device was stopped.
+  @retval EFI_UNSUPPORTED            Simple Text In Protocol or Simple Text In Ex
+                                     Protocol is not installed on Controller.
+  @retval EFI_DEVICE_ERROR           The device could not be stopped due to a
+                                     device error.
+  @retval Others                     Fail to uninstall protocols attached on the
+                                     device.
 
 **/
 EFI_STATUS
 EFIAPI
 UsbSerialDriverBindingStop (
-  IN  EFI_DRIVER_BINDING_PROTOCOL    *This,
-  IN  EFI_HANDLE                     Controller,
-  IN  UINTN                          NumberOfChildren,
-  IN  EFI_HANDLE                     *ChildHandleBuffer
-  );
-
-/**
-  Writes data to a serial device.
-
-  @param  This              Protocol instance pointer.
-  @param  BufferSize        On input, the size of the Buffer. On output, the amount of
-                            data actually written.
-  @param  Buffer            The buffer of data to write
-
-  @retval EFI_SUCCESS       The data was written.
-  @retval EFI_DEVICE_ERROR  The device reported an error.
-  @retval EFI_TIMEOUT       The data write was stopped due to a timeout.
-
-**/
-EFI_STATUS
-EFIAPI
-WriteSerialIo (
-  IN EFI_SERIAL_IO_PROTOCOL         *This,
-  IN OUT UINTN                      *BufferSize,
-  IN VOID                           *Buffer
-  );
-
-/**
-  Reads data from a serial device.
-
-  @param  This              Protocol instance pointer.
-  @param  BufferSize        On input, the size of the Buffer. On output, the amount of
-                            data returned in Buffer.
-  @param  Buffer            The buffer to return the data into.
-
-  @retval EFI_SUCCESS       The data was read.
-  @retval EFI_DEVICE_ERROR  The device reported an error.
-  @retval EFI_TIMEOUT       The data write was stopped due to a timeout.
-
-**/
-EFI_STATUS
-EFIAPI
-ReadSerialIo (
-  IN EFI_SERIAL_IO_PROTOCOL         *This,
-  IN OUT UINTN                      *BufferSize,
-  OUT VOID                          *Buffer
-  );
-
-/**
-  Initiates a read operation on the Usb Serial Device.
-
-  @param  UsbSerialDevice   Handle to the USB device to read
-  @param  BufferSize        On input, the size of the Buffer. On output, the amount of
-                            data returned in Buffer.
-                            Setting this to zero will initiate a read and store all data returned in the internal buffer.
-  @param  Buffer            The buffer to return the data into.
-
-  @retval EFI_SUCCESS       The data was read.
-  @retval EFI_DEVICE_ERROR  The device reported an error.
-  @retval EFI_TIMEOUT       The data write was stopped due to a timeout.
-
-**/
-EFI_STATUS
-EFIAPI
-ReadDataFromUsb (
-  IN USB_SER_DEV                    *UsbSerialDevice,
-  IN OUT UINTN                      *BufferSize,
-  OUT VOID                          *Buffer
-  );
-
-/**
-  Retrieves the status of the control bits on a serial device
-
-  @param  This              Protocol instance pointer.
-  @param  Control           A pointer to return the current Control signals from the serial device.
-
-  @retval EFI_SUCCESS       The control bits were read from the serial device.
-  @retval EFI_DEVICE_ERROR  The serial device is not functioning correctly.
-
-**/
-EFI_STATUS
-EFIAPI
-GetControlBits (
-  IN EFI_SERIAL_IO_PROTOCOL         *This,
-  OUT UINT32                        *Control
-  );
-
-/**
-  Set the control bits on a serial device
-
-  @param  This             Protocol instance pointer.
-  @param  Control          Set the bits of Control that are settable.
-
-  @retval EFI_SUCCESS      The new control bits were set on the serial device.
-  @retval EFI_UNSUPPORTED  The serial device does not support this operation.
-  @retval EFI_DEVICE_ERROR The serial device is not functioning correctly.
-
-**/
-EFI_STATUS
-EFIAPI
-SetControlBits (
-  IN EFI_SERIAL_IO_PROTOCOL         *This,
-  IN UINT32                         Control
-  );
-
-/**
-  Sets the baud rate, receive FIFO depth, transmit/receice time out, parity,
-  data buts, and stop bits on a serial device.
-
-  @param  This             Protocol instance pointer.
-  @param  BaudRate         The requested baud rate. A BaudRate value of 0 will use the
-                           device's default interface speed.
-  @param  ReveiveFifoDepth The requested depth of the FIFO on the receive side of the
-                           serial interface. A ReceiveFifoDepth value of 0 will use
-                           the device's default FIFO depth.
-  @param  Timeout          The requested time out for a single character in microseconds.
-                           This timeout applies to both the transmit and receive side of the
-                           interface. A Timeout value of 0 will use the device's default time
-                           out value.
-  @param  Parity           The type of parity to use on this serial device. A Parity value of
-                           DefaultParity will use the device's default parity value.
-  @param  DataBits         The number of data bits to use on the serial device. A DataBits
-                           vaule of 0 will use the device's default data bit setting.
-  @param  StopBits         The number of stop bits to use on this serial device. A StopBits
-                           value of DefaultStopBits will use the device's default number of
-                           stop bits.
-
-  @retval EFI_SUCCESS      The device was reset.
-  @retval EFI_DEVICE_ERROR The serial device could not be reset.
-
-**/
-EFI_STATUS
-EFIAPI
-SetAttributes (
-  IN EFI_SERIAL_IO_PROTOCOL         *This,
-  IN UINT64                         BaudRate,
-  IN UINT32                         ReceiveFifoDepth,
-  IN UINT32                         Timeout,
-  IN EFI_PARITY_TYPE                Parity,
-  IN UINT8                          DataBits,
-  IN EFI_STOP_BITS_TYPE             StopBits
+  IN  EFI_DRIVER_BINDING_PROTOCOL  *This,
+  IN  EFI_HANDLE                   Controller,
+  IN  UINTN                        NumberOfChildren,
+  IN  EFI_HANDLE                   *ChildHandleBuffer
   );
 
 //
 // Serial IO Member Functions
 //
+
+/**
+  Writes data to a serial device.
+
+  @param  This[in]                   Protocol instance pointer.
+  @param  BufferSize[in, out]        On input, the size of the Buffer. On output,
+                                     the amount of data actually written.
+  @param  Buffer[in]                 The buffer of data to write
+
+  @retval EFI_SUCCESS                The data was written.
+  @retval EFI_DEVICE_ERROR           The device reported an error.
+  @retval EFI_TIMEOUT                The data write was stopped due to a timeout.
+
+**/
+EFI_STATUS
+EFIAPI
+WriteSerialIo (
+  IN EFI_SERIAL_IO_PROTOCOL  *This,
+  IN OUT UINTN               *BufferSize,
+  IN VOID                    *Buffer
+  );
+
+/**
+  Reads data from a serial device.
+
+  @param  This[in]                   Protocol instance pointer.
+  @param  BufferSize[in, out]        On input, the size of the Buffer. On output,
+                                     the amount of data returned in Buffer.
+  @param  Buffer[out]                The buffer to return the data into.
+
+  @retval EFI_SUCCESS                The data was read.
+  @retval EFI_DEVICE_ERROR           The device reported an error.
+  @retval EFI_TIMEOUT                The data write was stopped due to a timeout.
+
+**/
+EFI_STATUS
+EFIAPI
+ReadSerialIo (
+  IN EFI_SERIAL_IO_PROTOCOL  *This,
+  IN OUT UINTN               *BufferSize,
+  OUT VOID                   *Buffer
+  );
+
+/**
+  Retrieves the status of the control bits on a serial device.
+
+  @param  This[in]               Protocol instance pointer.
+  @param  Control[out]           A pointer to return the current Control signals
+                                 from the serial device.
+
+  @retval EFI_SUCCESS            The control bits were read from the serial
+                                 device.
+  @retval EFI_DEVICE_ERROR       The serial device is not functioning correctly.
+
+**/
+EFI_STATUS
+EFIAPI
+GetControlBits (
+  IN EFI_SERIAL_IO_PROTOCOL  *This,
+  OUT UINT32                 *Control
+  );
+
+/**
+  Set the control bits on a serial device.
+
+  @param  This[in]             Protocol instance pointer.
+  @param  Control[in]          Set the bits of Control that are settable.
+
+  @retval EFI_SUCCESS          The new control bits were set on the serial device.
+  @retval EFI_UNSUPPORTED      The serial device does not support this operation.
+  @retval EFI_DEVICE_ERROR     The serial device is not functioning correctly.
+
+**/
+EFI_STATUS
+EFIAPI
+SetControlBits (
+  IN EFI_SERIAL_IO_PROTOCOL  *This,
+  IN UINT32                  Control
+  );
+
+/**
+  Calls SetAttributesInternal() to set the baud rate, receive FIFO depth,
+  transmit/receice time out, parity, data buts, and stop bits on a serial device.
+
+  @param  This[in]             Protocol instance pointer.
+  @param  BaudRate[in]         The requested baud rate. A BaudRate value of 0
+                               will use the device's default interface speed.
+  @param  ReveiveFifoDepth[in] The requested depth of the FIFO on the receive
+                               side of the serial interface. A ReceiveFifoDepth
+                               value of 0 will use the device's default FIFO
+                               depth.
+  @param  Timeout[in]          The requested time out for a single character in
+                               microseconds.This timeout applies to both the
+                               transmit and receive side of the interface.A
+                               Timeout value of 0 will use the device's default
+                               time out value.
+  @param  Parity[in]           The type of parity to use on this serial device.A
+                               Parity value of DefaultParity will use the
+                               device's default parity value.
+  @param  DataBits[in]         The number of data bits to use on the serial
+                               device. A DataBits value of 0 will use the
+                               device's default data bit setting.
+  @param  StopBits[in]         The number of stop bits to use on this serial
+                               device. A StopBits value of DefaultStopBits will
+                               use the device's default number of stop bits.
+
+  @retval EFI_SUCCESS          The attributes were set
+  @retval EFI_DEVICE_ERROR     The attributes were not able to be
+
+**/
+EFI_STATUS
+EFIAPI
+SetAttributes (
+  IN EFI_SERIAL_IO_PROTOCOL  *This,
+  IN UINT64                  BaudRate,
+  IN UINT32                  ReceiveFifoDepth,
+  IN UINT32                  Timeout,
+  IN EFI_PARITY_TYPE         Parity,
+  IN UINT8                   DataBits,
+  IN EFI_STOP_BITS_TYPE      StopBits
+  );
+
 /**
   Reset the serial device.
 
@@ -329,12 +461,13 @@ SetAttributes (
 EFI_STATUS
 EFIAPI
 SerialReset (
-  IN EFI_SERIAL_IO_PROTOCOL *This
+  IN EFI_SERIAL_IO_PROTOCOL  *This
   );
 
 //
 // EFI Component Name Functions
 //
+
 /**
   Retrieves a Unicode string that is the user readable name of the driver.
 
@@ -345,36 +478,37 @@ SerialReset (
   by This does not support the language specified by Language,
   then EFI_UNSUPPORTED is returned.
 
-  @param  This                  A pointer to the EFI_COMPONENT_NAME2_PROTOCOL or
-                                EFI_COMPONENT_NAME_PROTOCOL instance.
-  @param  Language              A pointer to a Null-terminated ASCII string
-                                array indicating the language. This is the
-                                language of the driver name that the caller is
-                                requesting, and it must match one of the
-                                languages specified in SupportedLanguages. The
-                                number of languages supported by a driver is up
-                                to the driver writer. Language is specified
-                                in RFC 4646 or ISO 639-2 language code format.
-  @param  DriverName            A pointer to the Unicode string to return.
-                                This Unicode string is the name of the
-                                driver specified by This in the language
-                                specified by Language.
+  @param  This[in]                   A pointer to the EFI_COMPONENT_NAME2_PROTOCOL
+                                     or EFI_COMPONENT_NAME_PROTOCOL instance.
+  @param  Language[in]               A pointer to a Null-terminated ASCII string
+                                     array indicating the language. This is the
+                                     language of the driver name that the caller
+                                     is requesting, and it must match one of the
+                                     languages specified in SupportedLanguages.
+                                     The number of languages supported by a
+                                     driver is up to the driver writer. Language
+                                     is specified in RFC 4646 or ISO 639-2
+                                     language code format.
+  @param  DriverName[out]            A pointer to the Unicode string to return.
+                                     This Unicode string is the name of the
+                                     driver specified by This in the language
+                                     specified by Language.
 
-  @retval EFI_SUCCESS           The Unicode string for the Driver specified by
-                                This and the language specified by Language was
-                                returned in DriverName.
-  @retval EFI_INVALID_PARAMETER Language is NULL.
-  @retval EFI_INVALID_PARAMETER DriverName is NULL.
-  @retval EFI_UNSUPPORTED       The driver specified by This does not support
-                                the language specified by Language.
+  @retval EFI_SUCCESS                The Unicode string for the Driver specified
+                                     by This and the language specified by
+                                     Language was returned in DriverName.
+  @retval EFI_INVALID_PARAMETER      Language is NULL.
+  @retval EFI_INVALID_PARAMETER      DriverName is NULL.
+  @retval EFI_UNSUPPORTED            The driver specified by This does not
+                                     support the language specified by Language.
 
 **/
 EFI_STATUS
 EFIAPI
 UsbSerialComponentNameGetDriverName (
-  IN  EFI_COMPONENT_NAME_PROTOCOL  *This,
-  IN  CHAR8                        *Language,
-  OUT CHAR16                       **DriverName
+  IN  EFI_COMPONENT_NAME2_PROTOCOL  *This,
+  IN  CHAR8                         *Language,
+  OUT CHAR16                        **DriverName
   );
 
 /**
@@ -390,84 +524,60 @@ UsbSerialComponentNameGetDriverName (
   then EFI_UNSUPPORTED is returned.  If the driver specified by This does not
   support the language specified by Language, then EFI_UNSUPPORTED is returned.
 
-  @param  This                  A pointer to the EFI_COMPONENT_NAME2_PROTOCOL or
-                                EFI_COMPONENT_NAME_PROTOCOL instance.
-  @param  ControllerHandle      The handle of a controller that the driver
-                                specified by This is managing.  This handle
-                                specifies the controller whose name is to be
-                                returned.
-  @param  ChildHandle           The handle of the child controller to retrieve
-                                the name of.  This is an optional parameter that
-                                may be NULL.  It will be NULL for device
-                                drivers.  It will also be NULL for a bus drivers
-                                that wish to retrieve the name of the bus
-                                controller.  It will not be NULL for a bus
-                                driver that wishes to retrieve the name of a
-                                child controller.
-  @param  Language              A pointer to a Null-terminated ASCII string
-                                array indicating the language.  This is the
-                                language of the driver name that the caller is
-                                requesting, and it must match one of the
-                                languages specified in SupportedLanguages. The
-                                number of languages supported by a driver is up
-                                to the driver writer. Language is specified in
-                                RFC 4646 or ISO 639-2 language code format.
-  @param  ControllerName        A pointer to the Unicode string to return.
-                                This Unicode string is the name of the
-                                controller specified by ControllerHandle and
-                                ChildHandle in the language specified by
-                                Language from the point of view of the driver
-                                specified by This.
+  @param  This[in]                   A pointer to the EFI_COMPONENT_NAME2_PROTOCOL
+                                     or EFI_COMPONENT_NAME_PROTOCOL instance.
+  @param  ControllerHandle[in]       The handle of a controller that the driver
+                                     specified by This is managing.  This handle
+                                     specifies the controller whose name is to
+                                     be returned.
+  @param  ChildHandle[in]            The handle of the child controller to
+                                     retrieve the name of. This is an optional
+                                     parameter that may be NULL. It will be NULL
+                                     for device drivers. It will also be NULL
+                                     for a bus drivers that wish to retrieve the
+                                     name of the bus controller. It will not be
+                                     NULL for a bus driver that wishes to
+                                     retrieve the name of a child controller.
+  @param  Language[in]               A pointer to a Null-terminated ASCII string
+                                     array indicating the language.  This is the
+                                     language of the driver name that the caller
+                                     is requesting, and it must match one of the
+                                     languages specified in SupportedLanguages.
+                                     The number of languages supported by a
+                                     driver is up to the driver writer. Language
+                                     is specified in RFC 4646 or ISO 639-2
+                                     language code format.
+  @param  ControllerName[out]        A pointer to the Unicode string to return.
+                                     This Unicode string is the name of the
+                                     controller specified by ControllerHandle
+                                     and ChildHandle in the language specified
+                                     by Language from the point of view of the
+                                     driver specified by This.
 
-  @retval EFI_SUCCESS           The Unicode string for the user readable name in
-                                the language specified by Language for the
-                                driver specified by This was returned in
-                                DriverName.
-  @retval EFI_INVALID_PARAMETER ControllerHandle is not a valid EFI_HANDLE.
-  @retval EFI_INVALID_PARAMETER ChildHandle is not NULL and it is not a valid
-                                EFI_HANDLE.
-  @retval EFI_INVALID_PARAMETER Language is NULL.
-  @retval EFI_INVALID_PARAMETER ControllerName is NULL.
-  @retval EFI_UNSUPPORTED       The driver specified by This is not currently
-                                managing the controller specified by
-                                ControllerHandle and ChildHandle.
-  @retval EFI_UNSUPPORTED       The driver specified by This does not support
-                                the language specified by Language.
+  @retval EFI_SUCCESS                The Unicode string for the user readable
+                                     name in the language specified by Language
+                                     for the driver specified by This was
+                                     returned in DriverName.
+  @retval EFI_INVALID_PARAMETER      ControllerHandle is not a valid EFI_HANDLE.
+  @retval EFI_INVALID_PARAMETER      ChildHandle is not NULL and it is not a
+                                     valid EFI_HANDLE.
+  @retval EFI_INVALID_PARAMETER      Language is NULL.
+  @retval EFI_INVALID_PARAMETER      ControllerName is NULL.
+  @retval EFI_UNSUPPORTED            The driver specified by This is not
+                                     currently managing the controller specified
+                                     by ControllerHandle and ChildHandle.
+  @retval EFI_UNSUPPORTED            The driver specified by This does not
+                                     support the language specified by Language.
 
 **/
-
 EFI_STATUS
 EFIAPI
 UsbSerialComponentNameGetControllerName (
-  IN  EFI_COMPONENT_NAME_PROTOCOL                     *This,
-  IN  EFI_HANDLE                                      ControllerHandle,
-  IN  EFI_HANDLE                                      ChildHandle        OPTIONAL,
-  IN  CHAR8                                           *Language,
-  OUT CHAR16                                          **ControllerName
-  );
-
-/**
-  UsbSerialDriverCheckInput 
-  attempts to read data in from the device periodically, stores any read data and
-  updates the control attributes.
-**/
-VOID
-EFIAPI
-UsbSerialDriverCheckInput (
-  IN  EFI_EVENT  Event,
-  IN  VOID       *Context
-  );
-
-/**
-  EncodeBaudRateForFtdi
-  Encodes a BaudRate for transmission to the serial device
-**/
-EFI_STATUS
-EFIAPI
-EncodeBaudRateForFtdi (
-  IN  UINT64  BaudRate,
-  OUT UINT16  *EncodedBaudRate
+  IN  EFI_COMPONENT_NAME2_PROTOCOL  *This,
+  IN  EFI_HANDLE                    ControllerHandle,
+  IN  EFI_HANDLE                    ChildHandle      OPTIONAL,
+  IN  CHAR8                         *Language,
+  OUT CHAR16                        **ControllerName
   );
 
 #endif
-

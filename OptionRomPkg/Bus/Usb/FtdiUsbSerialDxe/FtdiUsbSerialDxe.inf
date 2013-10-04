@@ -1,18 +1,19 @@
 ## @file
-#  USB Serial Driver that manages USB Serial device and produces Serial IO Protocol.
+#  USB Serial Driver that manages USB Serial device and produces Serial IO
+#  Protocol.
 #
-#  USB Serial Driver consumes USB I/O Protocol and Device Path Protocol, and produces
-#  Serial IO Protocol on USB Serial devices.
+#  USB Serial Driver consumes USB I/O Protocol and Device Path Protocol, and
+#  produces Serial IO Protocol on USB Serial devices.
 #  It manages the USB Serial device via USB Bulk Transfer of USB I/O Protocol.
 #  This module refers to following specifications:
 #  1. UEFI Specification, v2.1
 #
-# Copyright (c) 2006 - 2012, Intel Corporation. All rights reserved.<BR>
+# Copyright (c) 2006 - 2013, Intel Corporation. All rights reserved.<BR>
 #
 # This program and the accompanying materials
-# are licensed and made available under the terms and conditions of the BSD License
-# which accompanies this distribution. The full text of the license may be found at
-# http://opensource.org/licenses/bsd-license.php
+# are licensed and made available under the terms and conditions of the BSD
+# License which accompanies this distribution. The full text of the license may
+# be found at http://opensource.org/licenses/bsd-license.php
 #
 # THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
 # WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
@@ -26,34 +27,29 @@
   MODULE_TYPE                    = UEFI_DRIVER
   VERSION_STRING                 = 1.0
   ENTRY_POINT                    = FtdiUsbSerialEntryPoint
+  UNLOAD_IMAGE                   = FtdiUsbSerialUnload
 
 #
-# The following information is for reference only and not required by the build tools.
-#
 #  VALID_ARCHITECTURES           = IA32 X64 IPF EBC
-#
-#  DRIVER_BINDING                =  gUsbSerialDriverBinding
-#  COMPONENT_NAME                =  gUsbSerialComponentName
-#  COMPONENT_NAME2               =  gUsbSerialComponentName2
 #
 
 [Sources]
   FtdiUsbSerialDriver.c
   FtdiUsbSerialDriver.h
-  FtdiUsbSerial.c
-  FtdiUsbSerial.h
   ComponentName.c
 
 [Packages]
   MdePkg/MdePkg.dec
-  MdeModulePkg/MdeModulePkg.dec
 
 [LibraryClasses]
-  UefiLib
   UefiDriverEntryPoint
-  ReportStatusCodeLib
+  UefiLib
+  DevicePathLib
+  DebugLib
+
+[Guids]
+  gEfiUartDevicePathGuid
 
 [Protocols]
   gEfiUsbIoProtocolGuid                         ## TO_START
   gEfiSerialIoProtocolGuid                      ## BY_START
-
