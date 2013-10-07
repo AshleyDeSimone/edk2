@@ -609,6 +609,26 @@ SetDataInternal (
   UINT8                   ConfigurationValue;
 
   //
+  // Since data bits settings of 6,7,8 cannot be set with a stop bits setting of
+  // 1.5 check to see if this happens when the values of last settings are used
+  //
+  if ((DataBits == 0) && (StopBits == OneFiveStopBits)) {
+    if ((LastSettings->DataBits == 6) || (LastSettings->DataBits == 7) || (LastSettings->DataBits == 8)) {
+      return EFI_INVALID_PARAMETER;
+    }
+  } else if ((StopBits == DefaultStopBits) && ((DataBits == 6) || (DataBits == 7) || (DataBits == 8))) {
+    if (LastSettings->StopBits == OneFiveStopBits) {
+      return EFI_INVALID_PARAMETER;
+    }
+  } else if ((DataBits == 0) && (StopBits == DefaultStopBits)) {
+    if (LastSettings->StopBits == OneFiveStopBits) {
+      if ((LastSettings->DataBits == 6) || (LastSettings->DataBits == 7) || (LastSettings->DataBits == 8)) {
+        return EFI_INVALID_PARAMETER;
+      }
+    }
+  }
+
+  //
   // set the DevReq.Value for the usb control transfer to the correct value
   // based on the seleceted number of data bits if there is an invalid number of
   // data bits requested return EFI_INVALID_PARAMETER
