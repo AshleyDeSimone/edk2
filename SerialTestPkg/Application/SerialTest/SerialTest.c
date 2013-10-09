@@ -759,7 +759,7 @@ DisplayBaudRateMenu (
   VOID
   )
 {
-  Print (L"Please select the baud rate setting\n");
+  Print (L"Please select the baudrate setting\n");
   Print (L"0. 300\n");
   Print (L"1. 600\n");
   Print (L"2. 1200\n");
