@@ -228,7 +228,7 @@ UefiMain (
             DataBuffer[DataBufferSize] = '\0';
             Print(L"%a", DataBuffer);
           } else {
-            Print (L"Error Reading from serial device\n");
+            Print (L"Error reading from serial device\n");
             ExitLoop = TRUE;
             break;
           }
@@ -1044,8 +1044,8 @@ SetAttributesTest (
           if (Keystroke.ScanCode == 0x17) {
             break;
           }
-          if (Keystroke.UnicodeChar == 0x31) {
-            DataBits = 0;
+          if (Keystroke.UnicodeChar == 0x31) { //this is the option for the default data bits setting which is 8
+            DataBits = 8;
           }
           if (Keystroke.UnicodeChar == 0x32) {
             DataBits = 5;
