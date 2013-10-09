@@ -894,7 +894,7 @@ SetAttributesTest (
   UINT32                ReceiveFifoDepth;
   UINT32                Timeout;
   EFI_PARITY_TYPE       Parity;
-  UINT8                 DataBits;
+  UINT8                DataBits;
   EFI_STOP_BITS_TYPE    StopBits;
 
   Status = EFI_UNSUPPORTED;
@@ -904,13 +904,13 @@ SetAttributesTest (
   Print (L"At this time Timeout and Receive Fifo Depth cannot be changed\n");
 
   //
-  // set the components of Attributes to their default values since SerialIo
+  // set the components of Attributes to their current values since SerialIo
   // SetAttributes requires all values passed to it
   //
-  BaudRate         = 115200;
-  Parity           = NoParity;
-  DataBits         = 8;
-  StopBits         = OneStopBit;
+  BaudRate         = SerialIo->Mode->BaudRate;
+  Parity           = SerialIo->Mode->Parity;
+  DataBits         = (UINT8) SerialIo->Mode->DataBits;
+  StopBits         = SerialIo->Mode->StopBits;
   ReceiveFifoDepth = 1024;
   Timeout          = 16;
 
