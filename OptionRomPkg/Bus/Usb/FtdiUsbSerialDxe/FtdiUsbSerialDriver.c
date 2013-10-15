@@ -850,12 +850,14 @@ SetAttributesInternal (
   IN EFI_STOP_BITS_TYPE  StopBits
   )
 {
-  EFI_STATUS       Status;
-  EFI_TPL          Tpl;
-  UART_DEVICE_PATH *Uart;
+  EFI_STATUS                Status;
+  EFI_TPL                   Tpl;
+  UART_DEVICE_PATH          *Uart;
+  EFI_DEVICE_PATH_PROTOCOL  *RemainingDevicePath;
 
   Status = EFI_UNSUPPORTED;
   Tpl    = gBS->RaiseTPL(TPL_NOTIFY);
+  Uart   = NULL;
 
   //
   // check for invalid combinations of parameters
@@ -953,18 +955,20 @@ SetAttributesInternal (
 
   Status = EFI_SUCCESS;
   if (UsbSerialDevice->ControllerHandle != NULL) {
-    Uart = (UART_DEVICE_PATH *) (
-              (UINTN) UsbSerialDevice->DevicePath,
-              + GetDevicePathSize (UsbSerialDevice->ParentDevicePath)
-              - END_DEVICE_PATH_LENGTH
-              );
-    CopyMem (Uart, &UsbSerialDevice->UartDevicePath, sizeof (UART_DEVICE_PATH));
-    Status = gBS->ReinstallProtocolInterface (
-                    UsbSerialDevice->ControllerHandle,
-                    &gEfiDevicePathProtocolGuid,
-                    UsbSerialDevice->DevicePath,
-                    UsbSerialDevice->DevicePath
-                    );
+    RemainingDevicePath = UsbSerialDevice->DevicePath;
+    while (!IsDevicePathEnd (RemainingDevicePath)) {
+      Uart = (UART_DEVICE_PATH *) NextDevicePathNode (RemainingDevicePath);
+      if (Uart->Header.Type == MESSAGING_DEVICE_PATH &&
+          Uart->Header.SubType == MSG_UART_DP &&
+          sizeof (UART_DEVICE_PATH) == DevicePathNodeLength ((EFI_DEVICE_PATH *) Uart)) {
+        Uart->BaudRate = BaudRate;
+        Uart->DataBits = DataBits;
+        Uart->StopBits = (UINT8)StopBits;
+        Uart->Parity   = (UINT8) Parity;
+        break;
+        }
+        RemainingDevicePath = NextDevicePathNode (RemainingDevicePath);
+    }
   }
 
   gBS->RestoreTPL (Tpl);
