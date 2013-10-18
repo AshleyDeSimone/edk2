@@ -1928,6 +1928,14 @@ UsbSerialDriverBindingStart (
   UsbSerialDevice->UartDevicePath.Header.Length[0] = (UINT8) (sizeof (UART_DEVICE_PATH));
   UsbSerialDevice->UartDevicePath.Header.Length[1] = (UINT8) ((sizeof (UART_DEVICE_PATH)) >> 8);
 
+  //
+  // set the values of UsbSerialDevice->FlowControlDevicePath
+  UsbSerialDevice->FlowControlDevicePath.Header.Type = MESSAGING_DEVICE_PATH;
+  UsbSerialDevice->FlowControlDevicePath.Header.SubType = MSG_VENDOR_DP;
+  UsbSerialDevice->FlowControlDevicePath.Header.Length[0] = (UINT8) (sizeof (UART_FLOW_CONTROL_DEVICE_PATH));
+  UsbSerialDevice->FlowControlDevicePath.Header.Length[1] = (UINT8) ((sizeof (UART_FLOW_CONTROL_DEVICE_PATH)) >> 8);
+  UsbSerialDevice->FlowControlDevicePath.FlowControlMap = 0;
+
   Status = SetAttributesInternal (
              UsbSerialDevice, 
              UsbSerialDevice->LastSettings.BaudRate,
@@ -2053,18 +2061,14 @@ UsbSerialDriverBindingStart (
                                   (EFI_DEVICE_PATH_PROTOCOL *) &UsbSerialDevice->UartDevicePath
                                   );
   //
-  // Produce the flow contorl node only if the remaining device path has it
+  // Continue building the device path by appending the flow control node
   //
-  if (FlowControl != NULL) {
-    TempDevicePath = UsbSerialDevice->DevicePath;
-    if (TempDevicePath != NULL) {
-      UsbSerialDevice->DevicePath = AppendDevicePathNode (
-                                      TempDevicePath,
-                                      (EFI_DEVICE_PATH_PROTOCOL *) FlowControl
-                                      );
-      FreePool (TempDevicePath);
-    }
-  }
+  TempDevicePath = UsbSerialDevice->DevicePath;
+  UsbSerialDevice->DevicePath = AppendDevicePathNode (
+                                  TempDevicePath,
+                                  (EFI_DEVICE_PATH_PROTOCOL *) &UsbSerialDevice->FlowControlDevicePath
+                                  );
+  FreePool (TempDevicePath);
 
   if (UsbSerialDevice->DevicePath == NULL) {
     Status = EFI_OUT_OF_RESOURCES;

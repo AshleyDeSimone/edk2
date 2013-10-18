@@ -224,6 +224,7 @@ typedef struct {
   EFI_DEVICE_PATH_PROTOCOL      *DevicePath;
   EFI_DEVICE_PATH_PROTOCOL      *ParentDevicePath;
   UART_DEVICE_PATH              UartDevicePath;
+  UART_FLOW_CONTROL_DEVICE_PATH FlowControlDevicePath;
   EFI_USB_IO_PROTOCOL           *UsbIo;
   EFI_USB_INTERFACE_DESCRIPTOR  InterfaceDescriptor;
   EFI_USB_ENDPOINT_DESCRIPTOR   InEndpointDescriptor;
