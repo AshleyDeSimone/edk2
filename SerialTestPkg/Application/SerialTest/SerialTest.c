@@ -1292,12 +1292,18 @@ SetControlBitsTest (
     //
     if (RequestToSend) {
       *Control |= EFI_SERIAL_REQUEST_TO_SEND;
+    } else if (Control != 0) {
+      *Control &= EFI_SERIAL_REQUEST_TO_SEND;
     }
     if (DataTerminalReady) {
       *Control |= EFI_SERIAL_DATA_TERMINAL_READY;
+    } else if (Control != 0) {
+      *Control &= EFI_SERIAL_DATA_TERMINAL_READY;
     }
     if (HardwareFlowControl) {
       *Control |= EFI_SERIAL_HARDWARE_FLOW_CONTROL_ENABLE;
+    } else if (Control !=0) {
+      *Control &= EFI_SERIAL_HARDWARE_FLOW_CONTROL_ENABLE;
     }
 
     SerialIo->SetControl (SerialIo, *Control);
