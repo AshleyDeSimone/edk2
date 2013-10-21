@@ -1218,6 +1218,7 @@ SetControlBitsInternal (
 {
   EFI_STATUS                    Status;
   UART_FLOW_CONTROL_DEVICE_PATH *FlowControl;
+  EFI_DEVICE_PATH_PROTOCOL      *RemainingDevicePath;
 
   //
   // check for invalid control parameters hardware and software loopback enabled
@@ -1263,30 +1264,24 @@ SetControlBitsInternal (
   UsbSerialDevice->ControlValues.SoftwareLoopBack    = FALSE;
 
   Status = EFI_SUCCESS;
+  //
+  // Update the device path to have the correct flow control values
+  //
   if (UsbSerialDevice->ControllerHandle != NULL) {
-    FlowControl = (UART_FLOW_CONTROL_DEVICE_PATH *) (
-                    (UINTN) UsbSerialDevice->DevicePath,
-                    + GetDevicePathSize (UsbSerialDevice->ParentDevicePath)
-                    - END_DEVICE_PATH_LENGTH
-                    + sizeof (UART_DEVICE_PATH)
-                    );
-    if (IsUartFlowControlNode (FlowControl) &&
-        ((ReadUnaligned32 (&FlowControl->FlowControlMap) == UART_FLOW_CONTROL_HARDWARE)
-        ^ UsbSerialDevice->ControlValues.HardwareFlowControl)) {
-      //
-      // The flow control setting has been changed and the device path protocol
-      // needs to be reinstalled
-      //
-      WriteUnaligned32 (
-        &FlowControl->FlowControlMap,
-        UsbSerialDevice->ControlValues.HardwareFlowControl ? UART_FLOW_CONTROL_HARDWARE : 0
-        );
-      Status = gBS->ReinstallProtocolInterface (
-                      UsbSerialDevice->ControllerHandle,
-                      &gEfiDevicePathProtocolGuid,
-                      UsbSerialDevice->DevicePath,
-                      UsbSerialDevice->DevicePath
-                      );
+    RemainingDevicePath = UsbSerialDevice->DevicePath;
+    while (!IsDevicePathEnd (RemainingDevicePath)) {
+      FlowControl = (UART_FLOW_CONTROL_DEVICE_PATH *) NextDevicePathNode (RemainingDevicePath);
+      if (FlowControl->Header.Type == MESSAGING_DEVICE_PATH &&
+          FlowControl->Header.SubType == MSG_VENDOR_DP &&
+          sizeof (UART_FLOW_CONTROL_DEVICE_PATH) == DevicePathNodeLength ((EFI_DEVICE_PATH *) FlowControl)){
+        if (UsbSerialDevice->ControlValues.HardwareFlowControl == TRUE) {
+          FlowControl->FlowControlMap = UART_FLOW_CONTROL_HARDWARE;
+        } else if (UsbSerialDevice->ControlValues.HardwareFlowControl == FALSE) {
+          FlowControl->FlowControlMap = 0;
+        }
+        break;
+      }
+      RemainingDevicePath = NextDevicePathNode (RemainingDevicePath);
     }
   }
 
@@ -1565,9 +1560,9 @@ UsbSerialDriverBindingSupported (
   EFI_STATUS           Status;
   EFI_USB_IO_PROTOCOL  *UsbIo;
   UART_DEVICE_PATH     *UartNode;
-  UART_FLOW_CONTROL_DEVICE_PATH  *FlowControlNode;
-  UINTN                           Index;
-  UINTN                           EntryCount;
+  UART_FLOW_CONTROL_DEVICE_PATH        *FlowControlNode;
+  UINTN                                Index;
+  UINTN                                EntryCount;
   EFI_OPEN_PROTOCOL_INFORMATION_ENTRY  *OpenInfoBuffer;
   BOOLEAN                              HasFlowControl;
   EFI_DEVICE_PATH_PROTOCOL             *DevicePath;
@@ -2047,7 +2042,7 @@ UsbSerialDriverBindingStart (
       );
     FlowControl = (UART_FLOW_CONTROL_DEVICE_PATH *) NextDevicePathNode (RemainingDevicePath);
     if (IsUartFlowControlNode (FlowControl)) {
-      FlowControlMap = ReadUnaligned32 (&FlowControl->FlowControlMap);
+      UsbSerialDevice->FlowControlDevicePath.FlowControlMap = ReadUnaligned32 (&FlowControl->FlowControlMap);
     } else {
       FlowControl = NULL;
     }
